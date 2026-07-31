@@ -69,27 +69,27 @@ jobs:
           sed -i "s|releases/download/v.*keadm-v.*-linux-arm|releases/download/v${NEW_VER}/keadm-v${NEW_VER}-linux-arm|g" PKGBUILD
 
           # Regenerate .SRCINFO
-          cat > .SRCINFO << EOF
-         pkgbase = keadm-bin
-         	pkgdesc = KubeEdge installer tool for setting up cloud and edge components (prebuilt binary)
-         	pkgver = $NEW_VER
-         	pkgrel = 1
-         	url = https://kubeedge.io
-         	arch = x86_64
-         	arch = aarch64
-         	arch = armv7h
-         	license = Apache-2.0
-         	options = !strip
-         	options = !debug
-         	source_x86_64 = https://github.com/kubeedge/kubeedge/releases/download/v${NEW_VER}/keadm-v${NEW_VER}-linux-amd64.tar.gz
-         	sha512sums_x86_64 = $SHA_AMD64
-         	source_aarch64 = https://github.com/kubeedge/kubeedge/releases/download/v${NEW_VER}/keadm-v${NEW_VER}-linux-arm64.tar.gz
-         	sha512sums_aarch64 = $SHA_ARM64
-         	source_armv7h = https://github.com/kubeedge/kubeedge/releases/download/v${NEW_VER}/keadm-v${NEW_VER}-linux-arm.tar.gz
-         	sha512sums_armv7h = $SHA_ARM
+          cat > .SRCINFO <<EOF
+          pkgbase = keadm-bin
+          pkgdesc = KubeEdge installer tool for setting up cloud and edge components (prebuilt binary)
+          pkgver = $NEW_VER
+          pkgrel = 1
+          url = https://kubeedge.io
+          arch = x86_64
+          arch = aarch64
+          arch = armv7h
+          license = Apache-2.0
+          options = !strip
+          options = !debug
+          source_x86_64 = https://github.com/kubeedge/kubeedge/releases/download/v${NEW_VER}/keadm-v${NEW_VER}-linux-amd64.tar.gz
+          sha512sums_x86_64 = $SHA_AMD64
+          source_aarch64 = https://github.com/kubeedge/kubeedge/releases/download/v${NEW_VER}/keadm-v${NEW_VER}-linux-arm64.tar.gz
+          sha512sums_aarch64 = $SHA_ARM64
+          source_armv7h = https://github.com/kubeedge/kubeedge/releases/download/v${NEW_VER}/keadm-v${NEW_VER}-linux-arm.tar.gz
+          sha512sums_armv7h = $SHA_ARM
 
-         pkgname = keadm-bin
-         EOF
+          pkgname = keadm-bin
+          EOF
 
           # Clean up
           rm -f keadm-v${NEW_VER}-linux-*.tar.gz
