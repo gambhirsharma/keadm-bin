@@ -1,0 +1,104 @@
+name: Check for KubeEdge Updates
+
+on:
+  schedule:
+    - cron: '0 8 * * *'  # Run daily at 8am UTC
+  workflow_dispatch:       # Allow manual trigger
+
+jobs:
+  check-update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get latest KubeEdge release
+        id: latest
+        run: |
+          LATEST=$(curl -s https://api.github.com/repos/kubeedge/kubeedge/releases/latest | jq -r '.tag_name' | sed 's/^v//')
+          echo "version=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "Latest KubeEdge release: $LATEST"
+
+      - name: Get current package version
+        id: current
+        run: |
+          CURRENT=$(grep '^pkgver=' PKGBUILD | cut -d= -f2)
+          echo "version=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "Current package version: $CURRENT"
+
+      - name: Compare versions
+        id: compare
+        run: |
+          if [ "${{ steps.latest.outputs.version }}" != "${{ steps.current.outputs.version }}" ]; then
+            echo "update_needed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "update_needed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update PKGBUILD
+        if: steps.compare.outputs.update_needed == 'true'
+        run: |
+          NEW_VER="${{ steps.latest.outputs.version }}"
+          sed -i "s/^pkgver=.*/pkgver=$NEW_VER/" PKGBUILD
+          sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+
+          # Update sha512sums (placeholder - updpkgsums needs makepkg)
+          # We'll download files and compute locally
+          for arch in amd64 arm64 arm; do
+            URL="https://github.com/kubeedge/kubeedge/releases/download/v${NEW_VER}/keadm-v${NEW_VER}-linux-${arch}.tar.gz"
+            curl -sL "$URL" -o "keadm-v${NEW_VER}-linux-${arch}.tar.gz"
+          done
+
+          # Compute sha512sums
+          SHA_AMD64=$(sha512sum "keadm-v${NEW_VER}-linux-amd64.tar.gz" | awk '{print $1}')
+          SHA_ARM64=$(sha512sum "keadm-v${NEW_VER}-linux-arm64.tar.gz" | awk '{print $1}')
+          SHA_ARM=$(sha512sum "keadm-v${NEW_VER}-linux-arm.tar.gz" | awk '{print $1}')
+
+          sed -i "s/sha512sums_x86_64=.*/sha512sums_x86_64=('$SHA_AMD64')/" PKGBUILD
+          sed -i "s/sha512sums_aarch64=.*/sha512sums_aarch64=('$SHA_ARM64')/" PKGBUILD
+          sed -i "s/sha512sums_armv7h=.*/sha512sums_armv7h=('$SHA_ARM')/" PKGBUILD
+
+          # Update source URLs
+          sed -i "s|releases/download/v.*keadm-v.*-linux-amd64|releases/download/v${NEW_VER}/keadm-v${NEW_VER}-linux-amd64|g" PKGBUILD
+          sed -i "s|releases/download/v.*keadm-v.*-linux-arm64|releases/download/v${NEW_VER}/keadm-v${NEW_VER}-linux-arm64|g" PKGBUILD
+          sed -i "s|releases/download/v.*keadm-v.*-linux-arm|releases/download/v${NEW_VER}/keadm-v${NEW_VER}-linux-arm|g" PKGBUILD
+
+          # Regenerate .SRCINFO
+          # Parse PKGBUILD to update .SRCINFO manually
+          cat > .SRCINFO << EOF
+         pkgbase = keadm-bin
+         	pkgdesc = KubeEdge installer tool for setting up cloud and edge components (prebuilt binary)
+         	pkgver = $NEW_VER
+         	pkgrel = 1
+         	url = https://kubeedge.io
+         	arch = x86_64
+         	arch = aarch64
+         	arch = armv7h
+         	license = Apache-2.0
+         	options = !strip
+         	options = !debug
+         	source_x86_64 = https://github.com/kubeedge/kubeedge/releases/download/v${NEW_VER}/keadm-v${NEW_VER}-linux-amd64.tar.gz
+         	sha512sums_x86_64 = $SHA_AMD64
+         	source_aarch64 = https://github.com/kubeedge/kubeedge/releases/download/v${NEW_VER}/keadm-v${NEW_VER}-linux-arm64.tar.gz
+         	sha512sums_aarch64 = $SHA_ARM64
+         	source_armv7h = https://github.com/kubeedge/kubeedge/releases/download/v${NEW_VER}/keadm-v${NEW_VER}-linux-arm.tar.gz
+         	sha512sums_armv7h = $SHA_ARM
+
+         pkgname = keadm-bin
+         EOF
+
+          # Clean up downloaded tarballs
+          rm -f keadm-v${NEW_VER}-linux-*.tar.gz
+
+      - name: Create Pull Request
+        if: steps.compare.outputs.update_needed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Update keadm-bin to v${{ steps.latest.outputs.version }}"
+          title: "Update keadm-bin to v${{ steps.latest.outputs.version }}"
+          body: |
+            Automated update for KubeEdge v${{ steps.latest.outputs.version }}
+
+            Release: https://github.com/kubeedge/kubeedge/releases/tag/v${{ steps.latest.outputs.version }}
+          branch: "update-keadm-${{ steps.latest.outputs.version }}"
+          labels: automated
